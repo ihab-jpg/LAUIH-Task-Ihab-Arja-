@@ -1,0 +1,15 @@
+1) GPIO input is a type of input that the ESP32 recieves from outside, and it is a 1 or 0 input. This type of input is used in reading limit switches or buttons.
+2) GPIO output is a type of output that is supplied by the ESP32, where a high or low state is supplied (usually 3.3 V and 0 V), where this output is supplied to a component. Example: motor driver, where a high signal means turn the motor on, and a low signal means turn of. 
+3) ADC input, unlike GPIO can accept analog signals, where the signal recived is continuos and varying, where ADC means analog to digital converter, the analog signal is discretized into small frames, depending on the frequency, and every frame is transalted into a level, and these levels are read as digital input. Example: Temperature sensor, where this sensor provides an analog signal, that is tranlated  into a digital data using the ADC input. 
+4) PWM output is Pulse Width Modulation signal that controls a driver by translating need outcome into electric signal, where its a signal that has the following paramters: 
+  - Frequency (controls the switching speed of the signal) 
+  - Duty Cycle Percentage (it controls how long we want the device to be ON and OFF)
+Example: controlling a 12V DC motor speed, the PWM is suppplied to the motor driver, and its switched ON and OFF as fast as the frequency is, and its ON a percentage decided by the duty cycle, so if we want it to operate at half rated power, 50% duty cycle is set, and to act smooth, a 20KHz is chosen as the frequency.  
+5) UART, I2C, and SPI are communation protpcols, where each has its working logic and usage:
+
+  URAT: 2 main wires, one to recieve data, and one to send data. Used whenever 2 devices communate with each other. Example: Bluetooth.
+  I2C: Also 2 wires,SDA and SCL, but the 2 wires act as main busses, and multiple slave devices talk to the master device, and for each device its own address. Example: ESP32 device wants to read data from an IMU6250 and Humidity sensors, the controller requests data from the IMU6250 at an adress different from the Humidity sensor one, and the reply back the requested data.
+  SPI: Uses 4 wires, where its a combinatioo of both URAT and I2C, master and slave can write and read data, but the master is who controls the communication. Data is sent through the MOSI wire, recieved through the MISO wire, and clock is shared by SCLK wire, and CS wire selects which device. Example: saving sensor data to an SD card, where the ESP32 tells the SD card to get ready for saving the data through the MOSI wire, and then the SD cards confirms through the MISO.
+
+
+2) 
