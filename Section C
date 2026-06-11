@@ -1,0 +1,78 @@
+HTTP is the use of wifi to sned and recieve data through an API to a cloud for example, and I would choose it if I have a simple, connected to wifi system that updates data to a cloud.
+MQTT, like HTTP REST, uses wifi, but the power consumption is less, and communication happpends through a brooker, where data is published to a topic, and user subscribes to this topic in order to collect data. I would choose it when i need real-time monitoring, many devices, or continuous sensor updates.
+BLE (Blutooth) is the most commponly used communication type for short range and low power. This type works perfectly if we need to share data between close devices.
+LoRa which stands for Long Range radio is an efficient long range data transmission communication type, where like FM or AM, data is transmitted through a ling range signal from the transmitter to the reciever, and I would use it if I want to transmit data from a temparature sensor in a huge farm.
+
+
+2) 
+{
+  "device_id": "esp32_001",
+  "timestamp": "2026-06-11T12:30:00Z",
+  "firmware_version": "1.0.0",
+
+  "power_status": {
+    "source": "battery",
+    "battery_percentage": 82,
+    "battery_voltage": 3.92,
+    "charging": false,
+    "low_battery": false
+  },
+
+  "sensor_readings": {
+    "temperature_c": 25.4,
+    "humidity_percent": 60.2,
+    "analog_sensor": {
+      "raw_adc": 1850,
+      "voltage_v": 1.49
+    }
+  },
+
+  "error_state": {
+    "has_error": false,
+    "error_code": null,
+    "error_message": null
+  }
+}
+
+3) If wifi is disconnected, the ESP32 should keep on trying to connect, and connection requests should be generated. while trying to connect, data should be saved and stored in the flash memory until wifi us reconnected.
+    In order to not try every millisecond and consume too much power, a retry logic can be written:
+Retry 1 → wait 2 seconds
+Retry 2 → wait 5 seconds
+Retry 3 → wait 10 seconds
+Retry 4 → wait 30 seconds
+
+after reconnection, API request should be sent again, and saved data should be uploaded to the API, and then deleted. This is called data synchronization after reconnection.
+
+4) to securely identify devices, device Id should be used, and each device should have its own API key or token or certificate, where only the authourized devices by the admin have the previlage to send data. To secure data flow, HTTPS should be used.
+5) The firmware should expect a backend response that confirms successful data sending and may also include configuration changes, firmware update availability, calibration values, or error information. If the response confirms success, the firmware can delete any locally stored copy of that reading. If the upload fails, the firmware should retry or store the data for later synchronization
+  Example: {
+  "status": "success",
+  "message": "Data received successfully",
+  "received": true,
+  "server_timestamp": "2026-06-11T12:40:00Z",
+  "record_id": "abc123",
+
+  "configuration_update": {
+    "update_required": true,
+    "sampling_interval_seconds": 5,
+    "upload_interval_seconds": 30
+  },
+
+  "firmware_update": {
+    "available": true,
+    "latest_version": "1.0.2",
+    "update_url": "https://example.com/firmware/esp32_v1_0_2.bin"
+  },
+
+  "calibration_values": {
+    "temperature_offset": -0.5,
+    "humidity_offset": 2.0,
+    "analog_scale_factor": 1.03
+  },
+
+  "error_state": {
+    "has_error": false,
+    "error_code": null,
+    "error_message": null
+  }
+}
