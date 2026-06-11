@@ -1,0 +1,201 @@
+from machine import Pin, I2C, ADC
+import network
+import urequests
+import ujson
+import dht
+import ssd1306
+import time
+import gc
+
+# -------------------------
+# Wi-Fi settings
+# -------------------------
+
+WIFI_SSID = "YOUR_WIFI_NAME"
+WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
+
+# For Wokwi simulation, you can use:
+# WIFI_SSID = "Wokwi-GUEST"
+# WIFI_PASSWORD = ""
+
+# -------------------------
+# Cloud API settings
+# -------------------------
+
+API_URL = "https://your-cloud-api.com/api/sensor-data"
+API_KEY = "YOUR_API_KEY"
+
+DEVICE_ID = "esp32_001"
+
+# -------------------------
+# Pin configuration
+# -------------------------
+
+DHT_PIN = 14
+ANALOG_PIN = 39     # VN pin = GPIO39
+
+OLED_SDA = 21
+OLED_SCL = 22
+
+# -------------------------
+# Sensor setup
+# -------------------------
+
+dht_sensor = dht.DHT22(Pin(DHT_PIN))
+
+analog_sensor = ADC(Pin(ANALOG_PIN))
+analog_sensor.atten(ADC.ATTN_11DB)      # Read up to around 3.3V
+analog_sensor.width(ADC.WIDTH_12BIT)    # 0 to 4095
+
+# -------------------------
+# OLED setup
+# -------------------------
+
+i2c = I2C(0, scl=Pin(OLED_SCL), sda=Pin(OLED_SDA))
+oled = ssd1306.SSD1306_I2C(128, 64, i2c)
+
+# -------------------------
+# OLED helper
+# -------------------------
+
+def show_message(line1, line2="", line3="", line4=""):
+    oled.fill(0)
+    oled.text(line1, 0, 0)
+    oled.text(line2, 0, 16)
+    oled.text(line3, 0, 32)
+    oled.text(line4, 0, 48)
+    oled.show()
+
+# -------------------------
+# Wi-Fi connection
+# -------------------------
+
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+
+    if not wlan.isconnected():
+        print("Connecting to Wi-Fi...")
+        show_message("Connecting", "to Wi-Fi...")
+        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+
+        timeout = 15
+        while not wlan.isconnected() and timeout > 0:
+            time.sleep(1)
+            timeout -= 1
+
+    if wlan.isconnected():
+        print("Wi-Fi connected")
+        print("IP address:", wlan.ifconfig()[0])
+        show_message("Wi-Fi Connected", wlan.ifconfig()[0])
+        time.sleep(1)
+        return True
+    else:
+        print("Wi-Fi failed")
+        show_message("Wi-Fi Failed", "Check details")
+        return False
+
+# -------------------------
+# Upload data to cloud
+# -------------------------
+
+def upload_to_cloud(temperature, humidity, analog_raw, analog_voltage):
+    data = {
+        "device_id": DEVICE_ID,
+        "temperature": temperature,
+        "humidity": humidity,
+        "analog_raw": analog_raw,
+        "analog_voltage": analog_voltage
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + API_KEY
+    }
+
+    try:
+        response = urequests.post(
+            API_URL,
+            data=ujson.dumps(data),
+            headers=headers
+        )
+
+        print("Cloud response:", response.status_code)
+        response.close()
+
+        if response.status_code == 200 or response.status_code == 201:
+            return True
+        else:
+            return False
+
+    except Exception as e:
+        print("Upload error:", e)
+        return False
+
+# -------------------------
+# Start system
+# -------------------------
+
+show_message("ESP32 Starting")
+time.sleep(1)
+
+wifi_ok = connect_wifi()
+
+# -------------------------
+# Main loop
+# -------------------------
+
+while True:
+    try:
+        # Reconnect Wi-Fi if needed
+        wlan = network.WLAN(network.STA_IF)
+        if not wlan.isconnected():
+            wifi_ok = connect_wifi()
+
+        # Read DHT22
+        dht_sensor.measure()
+        temperature = dht_sensor.temperature()
+        humidity = dht_sensor.humidity()
+
+        # Read analog sensor
+        analog_raw = analog_sensor.read()
+        analog_voltage = round((analog_raw / 4095) * 3.3, 2)
+
+        # Print readings
+        print("Temperature:", temperature, "C")
+        print("Humidity:", humidity, "%")
+        print("Analog raw:", analog_raw)
+        print("Analog voltage:", analog_voltage, "V")
+
+        # Upload to cloud
+        uploaded = upload_to_cloud(
+            temperature,
+            humidity,
+            analog_raw,
+            analog_voltage
+        )
+
+        # Show on OLED
+        oled.fill(0)
+        oled.text("ESP32 Cloud", 0, 0)
+        oled.text("T: " + str(temperature) + " C", 0, 14)
+        oled.text("H: " + str(humidity) + " %", 0, 26)
+        oled.text("ADC: " + str(analog_raw), 0, 38)
+
+        if uploaded:
+            oled.text("Upload: OK", 0, 52)
+            print("Upload successful")
+        else:
+            oled.text("Upload: Failed", 0, 52)
+            print("Upload failed")
+
+        oled.show()
+
+    except Exception as e:
+        print("Main error:", e)
+        show_message("System Error", "Check sensors")
+
+    gc.collect()
+
+    # Send data every 10 seconds
+    time.sleep(10)
