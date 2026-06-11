@@ -1,0 +1,9 @@
+List of required components: 
+- Voltage regulator (12V to 3.3V)
+- Temparature Sensor
+-Humidity Sensor 
+-Soil Moisture sensor 
+- ESP32 module 
+-LED
+- LCD screen 
+
