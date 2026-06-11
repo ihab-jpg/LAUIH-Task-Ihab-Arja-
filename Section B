@@ -1,6 +1,6 @@
 List of required components: 
 - Voltage regulator (12V to 3.3V)
-- Temparature Sensor
+- Temperature Sensor
 -Humidity Sensor 
 -Soil Moisture sensor 
 - ESP32 module 
@@ -8,11 +8,48 @@ List of required components:
 - LCD screen 
 
 Block Diagram explanation: 
-  Starting with the power choice, 12V is a possible choice but either the ESP32 nor the sensors could accept 12V as input, so we will need to regulate this vlltage into 5/3.3 V 
+  Starting with the power choice, 12V is a possible choice but either the ESP32 nor the sensors could accept 12V as input, so we will need to regulate this voltage into 5/3.3 V 
   After that, the right connections should be made between each component alone with the ESP32 to test each one alone, then all the components together, at the right pins, where the SDA, SCL, Vcc, GND, Digital In, and Analog In should be used at the dedicated pins listed by the ESP32 datasheet. 
   After that, all the small code chunks should be gathered in one main program.
 For the communication method, if Wi-Fi is chosen, the ESP32 must first be configured with the Wi-Fi SSID and password. When the program starts, the ESP32 connects to the Wi-Fi network and should also include a reconnection method in case the connection is lost. After that, an API configuration is needed, including the API URL, device ID, and authentication key if required. The ESP32 reads the sensor data and sends it to the cloud API using an HTTP request, usually a POST request. The cloud stores this data, and the user can monitor it later through a dashboard or application that retrieves the data from the cloud.
 
 
 Task B2: 
+  Cover power: power should be checked across all pins and components, and especially after the regulator, where the voltage should be 5,3.3V.
+  Grounding: All electric components should share a common ground in order to make the circuit complete and reduce noise. 
+  Trace width should be suitable with the current passing through the circuit in order to prevent damage or heating.
+  Decoupling is very important for isolation and noise cancelation, where the right capacitance value should be chosen.
+  Antenna clearance: This is a crucial point to avoid noise, where the antenna should be the farthest from all the other electric components, and its wires should be placed perpendicular to other power wires to avoid magnetic fields interference. 
+  Connectors should be perfectly welded and isolated to avoid any short circuit or wire dispatch.
+  Programming access should be limited to changeable variables, in order to prevent malfunction and constant maintenance.
+  test points: Add test points for important signals like 3.3V, GND, sensor outputs, I2C lines, reset, and communication pins.
+  Sensor Placement should be on the sides to avoid interference from neighbor components that might impact the measuring of them.
+  Protection is crucial to avoid total damage, like placing fuses at the main current entrance, and check for any heating components that might require a heatsink.
+  Silkscreen labels should be clear and readable, where all connectors, components, and pins should be labeled.
+  Manufacturing: manufactured PCB should match the PCB design, where components spacing, connections, sizing, etc.. should be as designed first. 
+
+Task B3: 
+  the voltage regulation approach depends on the budget, where we could use a normal voltage divider using a combination of resistors if the budget is a bit tight, and we can use a ready level shifter component that shifts the 12V to 3.3 V that could be used to feed the ESP32 and its sensors.
+
+  Heat matters since some materials couldn’t withstand it and need to be cooled using a fan or a heatsink, and heat is always losing power which should be minimal. 
+  Current capacity should be limited to set a suitable wire thickness and know the maximum power.
+  The ripple effect is very important to cancel since it is noise that affects data, and it even can get amplified.
+  The regulator section matters since it will ensure the right voltage reaches the components that need it, and they can’t accept a voltage larger than what they need.
+
+Task B4: 
+The following rules should be respected when installing an antenna:
+    Place the ESP32 antenna at the edge of the PCB
+    The antenna should face outside/open space, not toward the middle of the board.
+    Do not put copper under the antenna, which might result in magnetic field generation which will interfere with the electromagnetic waves sent by the antenna
+    No ground, power, or signal traces under the antenna area.
+    Avoid routing I2C, SPI, UART, clock, USB traces close to the antenna.
+    Do not place resistors, capacitors, connectors, sensors, or ICs near the antenna zone.
+    Keep batteries away from the antenna
+    Avoid metal enclosures close to the antenna
+    Metal can reflect or absorb the RF signal.
+    Do not place connectors near the antenna
+    USB connectors, screw terminals, headers, or large metal connectors can affect Wi-Fi/Bluetooth performance.
+    Follow the antenna keep-out zone from the ESP32 module datasheet
+    The exact spacing depends on the ESP32 module type, but the general rule is to keep the antenna area clear
+
   
