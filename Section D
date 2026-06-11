@@ -1,113 +1,44 @@
+```c id="r8p6fw"
 #include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "driver/gpio.h
-#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
+
+#include "driver/gpio.h"
+#include "driver/adc.h"
+
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
+#include "esp_netif.h"
 #include "nvs_flash.h"
+#include "esp_http_client.h"
 
-#define DIGITAL_SENSOR
+// Pin configuration
 
-#define ANALOG_SENSOR   // GPIO34
+#define DIGITAL_SENSOR_GPIO GPIO_NUM_27
+#define STATUS_LED_GPIO GPIO_NUM_2
 
-void app_main(void)
-{
+// GPIO34 = ADC1_CHANNEL_6
+// If your analog sensor is connected to VN/GPIO39, use ADC1_CHANNEL_3 instead.
+#define ANALOG_SENSOR_CHANNEL ADC1_CHANNEL_6
 
- // Initialize NVS, required for Wi-Fi
-    esp_err_t ret = nvs_flash_init();
+// Timing configuration
 
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        nvs_flash_erase();
-        nvs_flash_init();
-    }
+#define SAMPLE_INTERVAL_MS 5000
+#define NUMBER_OF_READINGS 5
 
-    // Connect to Wi-Fi
-    wifi_init_sta();
-
-    while (1)
-    {
-        printf("ESP32 is running and connected to Wi-Fi\n");
-        vTaskDelay(pdMS_TO_TICKS(5000));
-    
- // Configure GPIO27 as input
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << DIGITAL_SENSOR_GPIO),
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_ENABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
-
-    gpio_config(&io_conf);
-
-    while (1)
-    {
-        int sensor_value = gpio_get_level(DIGITAL_SENSOR_GPIO);
-
-        if (sensor_value == 1)
-        {
-            printf("Sensor is ACTIVE / HIGH\n");
-        }
-        else
-        {
-            printf("Sensor is INACTIVE / LOW\n");
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(5000));
-    }
-// ADC setup
-    adc1_config_width(ADC_WIDTH_BIT_12); // 0 to 4095
-    adc1_config_channel_atten(ANALOG_SENSOR_CHANNEL, ADC_ATTEN_DB_11);
-
-    while (1)
-    {
-        int adc_value = adc1_get_raw(ANALOG_SENSOR_CHANNEL);
-        float voltage = (adc_value / 4095.0) * 3.3;
-
-        // Print values in plot-friendly format
-        printf("ADC:%d,Voltage:%.2f\n", adc_value, voltage);
-
-        vTaskDelay(pdMS_TO_TICKS(5000));
-    }
-}
-
- while (1) //This gets the AVG every 5 readings and print it
-    {
-        int adc_value = adc1_get_raw(ANALOG_SENSOR_CHANNEL);
-
-        readings[index] = adc_value;
-        index++;
-
-        printf("Reading %d: %d\n", index, adc_value);
-
-        if (index == NUMBER_OF_READINGS)
-        {
-            int sum = 0;
-
-            for (int i = 0; i < NUMBER_OF_READINGS; i++)
-            {
-                sum += readings[i];
-            }
-
-            float average_adc = sum / 5.0;
-            float average_voltage = (average_adc / 4095.0) * 3.3;
-
-            // Send average value
-            printf("Average_ADC:%.2f,Average_Voltage:%.2f\n", average_adc, average_voltage);
-
-            // Reset index to start collecting next 5 readings
-            index = 0;
-}
+// Wi-Fi configuration
 
 #define WIFI_SSID "WIFI_NAME"
 #define WIFI_PASS "WIFI_PASSWORD"
 
 #define MAX_RETRY 5
 
-static const char *TAG = "WIFI";
+static const char *WIFI_TAG = "WIFI";
 
 static EventGroupHandle_t wifi_event_group;
 
@@ -115,6 +46,46 @@ static EventGroupHandle_t wifi_event_group;
 #define WIFI_FAIL_BIT      BIT1
 
 static int retry_count = 0;
+static bool wifi_started = false;
+static volatile bool wifi_connected = false;
+
+// HTTP configuration
+
+#define HTTP_ENDPOINT "http://backend.com/api/readings"
+#define DEVICE_ID "esp32_001"
+#define API_KEY "API_KEY"
+
+static const char *HTTP_TAG = "HTTP";
+
+// LED status
+
+typedef enum {
+    LED_CONNECTING,
+    LED_CONNECTED,
+    LED_ERROR
+} led_status_t;
+
+volatile led_status_t led_status = LED_CONNECTING;
+
+// Sensor reading structure
+
+typedef struct {
+    float average_adc;
+    float average_voltage;
+    int digital_value;
+} sensor_reading_t;
+
+// Offline queue
+
+#define QUEUE_SIZE 10
+
+sensor_reading_t reading_queue[QUEUE_SIZE];
+
+int queue_head = 0;
+int queue_tail = 0;
+int queue_count = 0;
+
+// Wi-Fi event handler
 
 static void wifi_event_handler(void *arg,
                                esp_event_base_t event_base,
@@ -123,49 +94,77 @@ static void wifi_event_handler(void *arg,
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START)
     {
+        led_status = LED_CONNECTING;
         esp_wifi_connect();
     }
     else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
     {
+        wifi_connected = false;
+        led_status = LED_CONNECTING;
+
         if (retry_count < MAX_RETRY)
         {
-            esp_wifi_connect();
             retry_count++;
-            ESP_LOGI(TAG, "Retrying Wi-Fi connection...");
+            esp_wifi_connect();
+            ESP_LOGI(WIFI_TAG, "Retrying Wi-Fi connection...");
         }
         else
         {
+            led_status = LED_ERROR;
             xEventGroupSetBits(wifi_event_group, WIFI_FAIL_BIT);
         }
     }
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
-        ESP_LOGI(TAG, "Connected. IP Address: " IPSTR, IP2STR(&event->ip_info.ip));
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
 
+        wifi_connected = true;
         retry_count = 0;
+        led_status = LED_CONNECTED;
+
+        ESP_LOGI(WIFI_TAG, "Connected. IP Address: " IPSTR, IP2STR(&event->ip_info.ip));
+
         xEventGroupSetBits(wifi_event_group, WIFI_CONNECTED_BIT);
     }
 }
 
-void wifi_init_sta(void)
+// Hardware setup
+
+void setupHardware(void)
 {
+    esp_err_t ret = nvs_flash_init();
+
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
+    {
+        nvs_flash_erase();
+        nvs_flash_init();
+    }
+
+    gpio_reset_pin(STATUS_LED_GPIO);
+    gpio_set_direction(STATUS_LED_GPIO, GPIO_MODE_OUTPUT);
+
+    gpio_config_t digital_input_config = {
+        .pin_bit_mask = (1ULL << DIGITAL_SENSOR_GPIO),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+
+    gpio_config(&digital_input_config);
+
+    adc1_config_width(ADC_WIDTH_BIT_12);
+    adc1_config_channel_atten(ANALOG_SENSOR_CHANNEL, ADC_ATTEN_DB_11);
+
     wifi_event_group = xEventGroupCreate();
 
-    // Initialize network interface
     esp_netif_init();
-
-    // Create default event loop
     esp_event_loop_create_default();
-
-    // Create default Wi-Fi station
     esp_netif_create_default_wifi_sta();
 
-    // Initialize Wi-Fi
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    esp_wifi_init(&cfg);
+    wifi_init_config_t wifi_init_config = WIFI_INIT_CONFIG_DEFAULT();
+    esp_wifi_init(&wifi_init_config);
 
-    // Register event handlers
     esp_event_handler_instance_register(WIFI_EVENT,
                                         ESP_EVENT_ANY_ID,
                                         &wifi_event_handler,
@@ -178,7 +177,6 @@ void wifi_init_sta(void)
                                         NULL,
                                         NULL);
 
-    // Wi-Fi configuration
     wifi_config_t wifi_config = {
         .sta = {
             .ssid = WIFI_SSID,
@@ -186,29 +184,296 @@ void wifi_init_sta(void)
         },
     };
 
-    // Set Wi-Fi mode to station/client
     esp_wifi_set_mode(WIFI_MODE_STA);
-
-    // Apply Wi-Fi configuration
     esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+}
 
-    // Start Wi-Fi
-    esp_wifi_start();
+// Wi-Fi connection
 
-    ESP_LOGI(TAG, "Connecting to Wi-Fi...");
+bool connectWiFi(void)
+{
+    led_status = LED_CONNECTING;
+    retry_count = 0;
+
+    xEventGroupClearBits(wifi_event_group, WIFI_CONNECTED_BIT | WIFI_FAIL_BIT);
+
+    if (!wifi_started)
+    {
+        esp_wifi_start();
+        wifi_started = true;
+    }
+    else
+    {
+        esp_wifi_connect();
+    }
+
+    ESP_LOGI(WIFI_TAG, "Connecting to Wi-Fi...");
 
     EventBits_t bits = xEventGroupWaitBits(wifi_event_group,
                                            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
                                            pdFALSE,
                                            pdFALSE,
-                                           portMAX_DELAY);
+                                           pdMS_TO_TICKS(15000));
 
     if (bits & WIFI_CONNECTED_BIT)
     {
-        ESP_LOGI(TAG, "Wi-Fi connected successfully");
+        ESP_LOGI(WIFI_TAG, "Wi-Fi connected successfully");
+        led_status = LED_CONNECTED;
+        return true;
     }
-    else if (bits & WIFI_FAIL_BIT)
+
+    ESP_LOGE(WIFI_TAG, "Wi-Fi connection failed");
+    led_status = LED_ERROR;
+    return false;
+}
+
+// Read sensors
+
+bool readSensors(sensor_reading_t *reading)
+{
+    static int readings[NUMBER_OF_READINGS] = {0};
+    static int index = 0;
+
+    int adc_value = adc1_get_raw(ANALOG_SENSOR_CHANNEL);
+
+    readings[index] = adc_value;
+    index++;
+
+    printf("Reading %d/%d: %d\n", index, NUMBER_OF_READINGS, adc_value);
+
+    if (index < NUMBER_OF_READINGS)
     {
-        ESP_LOGI(TAG, "Failed to connect to Wi-Fi");
+        return false;
+    }
+
+    int sum = 0;
+
+    for (int i = 0; i < NUMBER_OF_READINGS; i++)
+    {
+        sum += readings[i];
+    }
+
+    reading->average_adc = sum / (float)NUMBER_OF_READINGS;
+    reading->average_voltage = (reading->average_adc / 4095.0) * 3.3;
+    reading->digital_value = gpio_get_level(DIGITAL_SENSOR_GPIO);
+
+    index = 0;
+
+    return true;
+}
+
+// Build JSON payload
+
+bool buildPayload(sensor_reading_t reading, char *payload, size_t payload_size)
+{
+    int result = snprintf(payload,
+                          payload_size,
+                          "{"
+                          "\"device_id\":\"%s\","
+                          "\"average_adc\":%.2f,"
+                          "\"average_voltage\":%.2f,"
+                          "\"digital_sensor\":%d"
+                          "}",
+                          DEVICE_ID,
+                          reading.average_adc,
+                          reading.average_voltage,
+                          reading.digital_value);
+
+    return result > 0 && result < payload_size;
+}
+
+// Send payload to HTTP endpoint
+
+bool sendPayload(const char *payload)
+{
+    if (!wifi_connected)
+    {
+        led_status = LED_CONNECTING;
+        return false;
+    }
+
+    esp_http_client_config_t config = {
+        .url = HTTP_ENDPOINT,
+        .method = HTTP_METHOD_POST,
+        .timeout_ms = 5000
+    };
+
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    char auth_header[128];
+    snprintf(auth_header, sizeof(auth_header), "Bearer %s", API_KEY);
+    esp_http_client_set_header(client, "Authorization", auth_header);
+
+    esp_http_client_set_post_field(client, payload, strlen(payload));
+
+    esp_err_t err = esp_http_client_perform(client);
+
+    bool success = false;
+
+    if (err == ESP_OK)
+    {
+        int status_code = esp_http_client_get_status_code(client);
+
+        ESP_LOGI(HTTP_TAG, "HTTP status: %d", status_code);
+        ESP_LOGI(HTTP_TAG, "Payload: %s", payload);
+
+        if (status_code >= 200 && status_code < 300)
+        {
+            success = true;
+            led_status = LED_CONNECTED;
+        }
+        else
+        {
+            led_status = LED_ERROR;
+            ESP_LOGE(HTTP_TAG, "Server rejected data");
+        }
+    }
+    else
+    {
+        wifi_connected = false;
+        led_status = LED_ERROR;
+        ESP_LOGE(HTTP_TAG, "HTTP POST failed: %s", esp_err_to_name(err));
+    }
+
+    esp_http_client_cleanup(client);
+
+    return success;
+}
+
+// Store failed reading
+
+void storeOfflineReading(sensor_reading_t reading)
+{
+    if (queue_count == QUEUE_SIZE)
+    {
+        queue_head = (queue_head + 1) % QUEUE_SIZE;
+        queue_count--;
+        printf("Offline queue full, oldest reading removed\n");
+    }
+
+    reading_queue[queue_tail] = reading;
+    queue_tail = (queue_tail + 1) % QUEUE_SIZE;
+    queue_count++;
+
+    printf("Reading stored offline. Queue count: %d\n", queue_count);
+}
+
+// Retry stored readings
+
+void retryOfflineQueue(void)
+{
+    while (queue_count > 0)
+    {
+        sensor_reading_t old_reading = reading_queue[queue_head];
+
+        char payload[256];
+
+        if (!buildPayload(old_reading, payload, sizeof(payload)))
+        {
+            printf("Failed to build offline payload\n");
+            return;
+        }
+
+        bool sent = sendPayload(payload);
+
+        if (!sent)
+        {
+            printf("Offline retry failed. Keeping data in queue\n");
+            return;
+        }
+
+        queue_head = (queue_head + 1) % QUEUE_SIZE;
+        queue_count--;
+
+        printf("Offline reading sent. Remaining queue count: %d\n", queue_count);
     }
 }
+
+// Status LED task
+
+void updateStatusLed(void *pvParameters)
+{
+    while (1)
+    {
+        if (led_status == LED_CONNECTING)
+        {
+            gpio_set_level(STATUS_LED_GPIO, 1);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            gpio_set_level(STATUS_LED_GPIO, 0);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+        else if (led_status == LED_CONNECTED)
+        {
+            gpio_set_level(STATUS_LED_GPIO, 1);
+            vTaskDelay(pdMS_TO_TICKS(500));
+        }
+        else if (led_status == LED_ERROR)
+        {
+            gpio_set_level(STATUS_LED_GPIO, 1);
+            vTaskDelay(pdMS_TO_TICKS(100));
+            gpio_set_level(STATUS_LED_GPIO, 0);
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
+}
+
+// Main loop
+
+void loop(void)
+{
+    sensor_reading_t new_reading;
+
+    if (!wifi_connected)
+    {
+        connectWiFi();
+    }
+
+    bool reading_ready = readSensors(&new_reading);
+
+    if (reading_ready)
+    {
+        printf("Average ADC: %.2f\n", new_reading.average_adc);
+        printf("Average Voltage: %.2f V\n", new_reading.average_voltage);
+        printf("Digital Sensor: %d\n", new_reading.digital_value);
+
+        retryOfflineQueue();
+
+        char payload[256];
+
+        if (buildPayload(new_reading, payload, sizeof(payload)))
+        {
+            bool sent = sendPayload(payload);
+
+            if (!sent)
+            {
+                storeOfflineReading(new_reading);
+            }
+        }
+        else
+        {
+            printf("Failed to build payload\n");
+            storeOfflineReading(new_reading);
+        }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
+}
+
+// Entry point
+
+void app_main(void)
+{
+    setupHardware();
+
+    xTaskCreate(updateStatusLed, "updateStatusLed", 2048, NULL, 1, NULL);
+
+    connectWiFi();
+
+    while (1)
+    {
+        loop();
+    }
+}
+```
