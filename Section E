@@ -13,19 +13,3 @@
 5) Before producing 20 boards, I would try the prototype in different settings that the PCBs might encounter  and test their performance in each, afterwhich I will test the wifi connection performance and the range of the connection. I will aslo test for different algorithms that might draw high currrent and account for that.
 
 
-Section F 
-Firmware Architecture: 
-    Library imports 
-    Constants and variables definition (including Pins, wifi, and HTTP configuration)
-    Sensor structure 
-    Wifi event handler (responsible for connecting and blinking the LED)
-    GPIO and memory (queue and flash memory) configuration 
-    Wifi disconnection retry logoic 
-    Sensor reading logic
-    JSON structure (including backend request generations and confirmations)
-    Retry stored readings while disconnected (push the saved values in the queue to the API)
-    MAIN Loop
-
-Sensor communication type is using I2C
-
-Block diagram is described detailedly in the Section B 
