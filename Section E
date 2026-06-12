@@ -1,0 +1,31 @@
+1) If a prototype is working on USB power but is resetting if connected to 12V, then the first thing I would do is check the voltage regulator used after the 12V, and compare it with the 12V. A conventional USB charger will supply no more than 5 volts, so this tells us that the prototype is protected against high voltages, or the regulator is bad enough to not respond fast for suddent current draws and keeping a stable 3.3 volts, and this happens directly after the ESP32 tries to connect to the wifi, leading to this suddent high currrent draw. To  debug it I would test the regulator on its own, or try connecting a trusted regulator and see if the problem presists.
+2) Hardware improvements: 
+      Place a filter after the sensor
+      Choose a high quality sensor
+      Place the data cable perpendicular to any power cable to reduce electromagnetic interference
+   Firmware improvements:
+      Increase the sampling rate
+      Filer the signal using a low pass filter
+      Take the avarage of every 5 readings, and reject values that are logically not possible (they migh be caused due to hardware phenomenons)
+
+3) In an industrial enclosure, machines will for sure block wifi from reaching every point in the industry. Machines can produce heat, magnetic fields, and their large size can block wifi signals. 
+4) First, check if the device is recieving power, turned on , and giving any life signals. since the device is not sending data, a connection problem is a greate chance, the wifi connection should be reviewd. A briefe time logs could be added, like last succesfully sent data timing, and last unsuccessful data sending. A blinking LED when connected to wifi, and one blinking when sending data would be an indicator. For the remote diagnostic, a health message should be uploaded every 5 minutes, summarizing connection statues, sensor hardware status(if sending data or no), backend confirmation status, and memory status.
+5) Before producing 20 boards, I would try the prototype in different settings that the PCBs might encounter  and test their performance in each, afterwhich I will test the wifi connection performance and the range of the connection. I will aslo test for different algorithms that might draw high currrent and account for that.
+
+
+Section F 
+Firmware Architecture: 
+    Library imports 
+    Constants and variables definition (including Pins, wifi, and HTTP configuration)
+    Sensor structure 
+    Wifi event handler (responsible for connecting and blinking the LED)
+    GPIO and memory (queue and flash memory) configuration 
+    Wifi disconnection retry logoic 
+    Sensor reading logic
+    JSON structure (including backend request generations and confirmations)
+    Retry stored readings while disconnected (push the saved values in the queue to the API)
+    MAIN Loop
+
+Sensor communication type is using I2C
+
+Block diagram is described detailedly in the Section B 
