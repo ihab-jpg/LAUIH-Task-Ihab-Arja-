@@ -1,7 +1,7 @@
-HTTP is the use of wifi to sned and recieve data through an API to a cloud for example, and I would choose it if I have a simple, connected to wifi system that updates data to a cloud.
-MQTT, like HTTP REST, uses wifi, but the power consumption is less, and communication happpends through a brooker, where data is published to a topic, and user subscribes to this topic in order to collect data. I would choose it when i need real-time monitoring, many devices, or continuous sensor updates.
-BLE (Blutooth) is the most commponly used communication type for short range and low power. This type works perfectly if we need to share data between close devices.
-LoRa which stands for Long Range radio is an efficient long range data transmission communication type, where like FM or AM, data is transmitted through a ling range signal from the transmitter to the reciever, and I would use it if I want to transmit data from a temparature sensor in a huge farm.
+1)  HTTP is the use of wifi to sned and recieve data through an API to a cloud for example, and I would choose it if I have a simple, connected to wifi system that updates data to a cloud.
+    MQTT, like HTTP REST, uses wifi, but the power consumption is less, and communication happpends through a brooker, where data is published to a topic, and user subscribes to this topic in order to collect data. I would choose it when i need real-time monitoring, many devices, or continuous sensor updates.
+    BLE (Blutooth) is the most commponly used communication type for short range and low power. This type works perfectly if we need to share data between close devices.
+    LoRa which stands for Long Range radio is an efficient long range data transmission communication type, where like FM or AM, data is transmitted through a ling range signal from the transmitter to the reciever, and I would use it if I want to transmit data from a temparature sensor in a huge farm.
 
 
 2) 
