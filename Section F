@@ -1,0 +1,99 @@
+1) Firmware Architecture: 
+    Library imports 
+    Constants and variables definition (including Pins, wifi, and HTTP configuration)
+    Sensor structure 
+    Wifi event handler (responsible for connecting and blinking the LED)
+    GPIO and memory (queue and flash memory) configuration 
+    Wifi disconnection retry logoic 
+    Sensor reading logic
+    JSON structure (including backend request generations and confirmations)
+    Retry stored readings while disconnected (push the saved values in the queue to the API)
+    MAIN Loop
+
+2) Pin Mapping: 
+      Digital sensor input	GPIO27	Configured as GPIO input with pull-down enabled
+      Analog sensor input	GPIO34  	Used for analog voltage reading from 0V to 3.3V
+      Status LED	GPIO2	Blinks while connecting, solid when connected, fast blink on error
+      Wi-Fi communication	Internal ESP32 radio	Used to send data to backend over HTTP
+      Power input	5V to dev board VIN/USB or regulated 3.3V to ESP32 module	12V must not be applied directly to ESP32 pins
+      Ground	GND	Common ground required between ESP32, sensors, and power supply
+
+
+
+3) Sensor communication type is using I2C
+    Analog: ADC voltage = ADC raw value / 4095 × 3.3V  
+    The digital sensor is assumed to provide a simple HIGH or LOW output. It is connected to a GPIO input pin and read using gpio_get_level().
+    The firmware assumes that all sensor outputs are 3.3V. No 5V signal should be connected directly to ESP32 GPIO or ADC pins. If a sensor outputs 5V, a voltage divider or level shifter must be added.
+    The analog sensor is sampled every 5 seconds. The firmware averages the last 5 readings before sending data, meaning one averaged reading is sent every 25 seconds. This helps reduce noise and gives a more stable reading.
+
+
+
+4) The PCB is assumed to contain an ESP32 module or ESP32 development-board equivalent, sensor connectors, power regulation, status LED, and programming access.
+
+    Main PCB assumptions:
+    
+    The ESP32 is powered from a stable 3.3V rail. If the input supply is 12V, a regulator should first convert 12V to 5V or 3.3V
+    The analog sensor trace should be kept away from noisy power traces, motors, and switching regulators.
+    The ESP32 antenna area should have a proper zone with no copper, traces, batteries, connectors, or metal parts nearby
+    Decoupling capacitors should be placed close to the ESP32 power pins and sensor supply pins.
+    Programming access should be available through UART pins, EN, BOOT, 3.3V, and GND.
+    Test points should be added for 3.3V, GND, analog input, digital input, and reset/debug signals.
+
+Block diagram:
+
+12V Adapter
+    |
+    v
+Regulator
+    |
+    v
+Stable 5V or 3.3V Rail
+    |
+    v
+ESP32
+    |
+    |-- ADC Input  <--- Analog Sensor
+    |
+    |-- GPIO Input <--- Digital Sensor
+    |
+    |-- GPIO Output ---> Status LED
+    |
+    |-- Wi-Fi ---> Backend HTTP API ---> User Dashboard
+5) Main Limitations: 
+    The current communication uses HTTP. For a more scalable IoT system, MQTT could be used because it is lighter and better for real-time device monitoring.
+    The API key is currently assumed to be stored in firmware. A better production design would use secure provisioning, unique credentials per device, HTTPS, and possibly certificate-based authentication.
+    The analog voltage calculation assumes a 3.3V reference. For higher accuracy, the ADC should be calibrated.
+
+6) Steps to build, flash, and test the firmware:
+      Install ESP-IDF and set up the development environment.
+      Create a new ESP-IDF project or open the existing firmware project.
+      Place the firmware code in the main source file, usually main.c.
+      Update the configuration values:
+            Wi-Fi SSID
+            Wi-Fi password
+            HTTP endpoint URL
+            Device ID
+            API key
+            GPIO pins if the wiring is different
+      Connect the hardware:
+            Analog sensor output to GPIO34 or the selected ADC pin
+            Digital sensor output to GPIO27
+            Status LED to GPIO2
+            Common GND between ESP32, sensors, and power supply
+            Sensor outputs limited to 3.3V maximum
+      Build the project using:
+            idf.py build
+            Connect the ESP32 to the computer using USB.
+            Flash the firmware using:
+            idf.py -p COM_PORT flash
+      Open the serial monitor using:
+            idf.py -p COM_PORT monitor
+            Check that the ESP32 connects to Wi-Fi successfully.
+            Verify that sensor readings appear every 5 seconds.
+            Confirm that after 5 readings, the firmware calculates the average and sends the payload to the HTTP backend.
+            Test failure handling by turning off Wi-Fi or disconnecting the backend. The firmware should store failed readings in the offline queue.
+            Restore Wi-Fi or backend access and confirm that the firmware retries and sends stored readings.
+            Check the status LED behavior:
+            Slow blink while connecting
+            Solid ON when connected
+            Fast blink on error
