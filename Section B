@@ -1,17 +1,17 @@
 List of required components: 
 - Voltage regulator (12V to 3.3V)
 - Temperature Sensor
--Humidity Sensor 
--Soil Moisture sensor 
+- Humidity Sensor 
+- Soil Moisture sensor 
 - ESP32 module 
--LED
+- LED
 - LCD screen 
 
 Block Diagram explanation: 
   Starting with the power choice, 12V is a possible choice but either the ESP32 nor the sensors could accept 12V as input, so we will need to regulate this voltage into 5/3.3 V 
   After that, the right connections should be made between each component alone with the ESP32 to test each one alone, then all the components together, at the right pins, where the SDA, SCL, Vcc, GND, Digital In, and Analog In should be used at the dedicated pins listed by the ESP32 datasheet. 
   After that, all the small code chunks should be gathered in one main program.
-For the communication method, if Wi-Fi is chosen, the ESP32 must first be configured with the Wi-Fi SSID and password. When the program starts, the ESP32 connects to the Wi-Fi network and should also include a reconnection method in case the connection is lost. After that, an API configuration is needed, including the API URL, device ID, and authentication key if required. The ESP32 reads the sensor data and sends it to the cloud API using an HTTP request, usually a POST request. The cloud stores this data, and the user can monitor it later through a dashboard or application that retrieves the data from the cloud.
+  For the communication method, if Wi-Fi is chosen, the ESP32 must first be configured with the Wi-Fi SSID and password. When the program starts, the ESP32 connects to the Wi-Fi network and should also include a reconnection method in case the connection is lost. After that, an API configuration is needed, including the API URL, device ID, and authentication key if required. The ESP32 reads the sensor data and sends it to the cloud API using an HTTP request, usually a POST request. The cloud stores this data, and the user can monitor it later through a dashboard or application that retrieves the data from the cloud.
 
 
 Task B2: 
